@@ -125,25 +125,24 @@ def search_venues():
   # seach for Hop should return "The Musical Hop".
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
   search_term=request.form.get('search_term', '')
-  results = []
+  response = {}
+  venuesMatch = list(Venue.query.filter(
+    Venue.name.ilike(f"%{search_term}%") |
+    Venue.state.ilike(f"%{search_term}%") |
+    Venue.city.ilike(f"%{search_term}%")
+  ).all())
 
-  results_venues = Venue.query.filter(func.lower(Venue.name)== func.lower(search_term)).all()
+  response["count"] = len(venuesMatch)
+  response["data"] = []
+
+  for venue in venuesMatch:
+    val = {
+      "id" : venue.id,
+      "name" : venue.name
+    }
+    response["data"].append(val)
   
-  for item in results_venues:
-    results.append(item)
-    
-  length = len(results)
-  print(results)
-
-  response={
-    "count": 1,
-    "data": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }
-  return render_template('pages/search_venues.html', results=results, length=length, search_term=search_term)
+  return render_template('pages/search_venues.html', results=response, search_term=search_term)
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
