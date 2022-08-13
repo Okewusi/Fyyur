@@ -9,6 +9,7 @@ import babel
 from flask import Flask, render_template, request, Response, flash, redirect, url_for
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import ARRAY
 from flask_migrate import Migrate
 import logging
@@ -46,6 +47,7 @@ class Venue(db.Model):
     website_link = db.Column(db.String(500))
     talent = db.Column(db.Boolean, default=False)
     seeking_description = db.Column(db.String())
+    date_created = db.Column(db.DateTime, default = datetime.now)
     shows_venue = db.relationship('Show', backref='venue', lazy=True)
 
 
@@ -65,6 +67,7 @@ class Artist(db.Model):
     website_link = db.Column(db.String(500))
     venue = db.Column(db.Boolean, default=False)
     seeking_description_artist = db.Column(db.String())
+    date_created = db.Column(db.DateTime, default= datetime.now)
     shows_artist = db.relationship('Show', backref='artist', lazy=True)
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
@@ -74,7 +77,7 @@ class Artist(db.Model):
 class Show(db.Model):
  __tablename__ = 'shows'
  id= db.Column(db.Integer, primary_key=True)
- date= db.Column(db.DateTime)
+ date= db.Column(db.DateTime, default= datetime.now, nullable =False)
  artist_id = db.Column(db.Integer, db.ForeignKey('artist.id'), nullable=False)
  venue_id = db.Column(db.Integer, db.ForeignKey('venue.id'), nullable=False)
 
@@ -91,6 +94,7 @@ def format_datetime(value, format='medium'):
   elif format == 'medium':
       format="EE MM, dd, y h:mma"
   return babel.dates.format_datetime(date, format, locale='en')
+
 
 app.jinja_env.filters['datetime'] = format_datetime
 
@@ -110,43 +114,35 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-  data=[{
-    "city": "San Francisco",
-    "state": "CA",
-    "venues": [{
-      "id": 1,
-      "name": "The Musical Hop",
-      "num_upcoming_shows": 0,
-    }, {
-      "id": 3,
-      "name": "Park Square Live Music & Coffee",
-      "num_upcoming_shows": 1,
-    }]
-  }, {
-    "city": "New York",
-    "state": "NY",
-    "venues": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }]
-  return render_template('pages/venues.html', areas=data);
+  all_venues = db.session.query(Venue).all()
+  distinct_states = db.session.query(Venue.city, Venue.state).distinct()
+  return render_template('pages/venues.html', all_venues=all_venues, distinct_states=distinct_states)
+
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
   # TODO: implement search on venues with partial string search. Ensure it is case-insensitive.
   # seach for Hop should return "The Musical Hop".
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
-  response={
-    "count": 1,
-    "data": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }
-  return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
+  search_term=request.form.get('search_term', '')
+  response = {}
+  venuesMatch = list(Venue.query.filter(
+    Venue.name.ilike(f"%{search_term}%") |
+    Venue.state.ilike(f"%{search_term}%") |
+    Venue.city.ilike(f"%{search_term}%")
+  ).all())
+
+  response["count"] = len(venuesMatch)
+  response["data"] = []
+
+  for venue in venuesMatch:
+    val = {
+      "id" : venue.id,
+      "name" : venue.name
+    }
+    response["data"].append(val)
+  
+  return render_template('pages/search_venues.html', results=response, search_term=search_term)
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
@@ -162,7 +158,7 @@ def show_venue(venue_id):
     "phone": "123-123-1234",
     "website": "https://www.themusicalhop.com",
     "facebook_link": "https://www.facebook.com/TheMusicalHop",
-    "seeking_talent": True,
+    "seeking_tlent": True,
     "seeking_description": "We are on the lookout for a local artist to play every two weeks. Please call us.",
     "image_link": "https://images.unsplash.com/photo-1543900694-133f37abaaa5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=400&q=60",
     "past_shows": [{
