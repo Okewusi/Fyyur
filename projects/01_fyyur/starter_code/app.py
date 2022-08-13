@@ -6,7 +6,7 @@ from email.policy import default
 import json
 import dateutil.parser
 import babel
-from flask import Flask, render_template, request, Response, flash, redirect, url_for
+from flask import Flask, render_template, request, Response, flash, redirect, url_for, abort
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
@@ -16,6 +16,7 @@ import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
+import sys
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -26,6 +27,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pelcool@localhost:5432/fyy
 #app.config.from_object('config')
 db = SQLAlchemy(app)
 migrate = Migrate(app,db)
+app.secret_key = "testingthis"
 # TODO: connect to a local postgresql database
 
 #----------------------------------------------------------------------------#
@@ -44,8 +46,8 @@ class Venue(db.Model):
     genres = db.Column(db.ARRAY(db.String), nullable=False)
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
-    website_link = db.Column(db.String(500))
-    talent = db.Column(db.Boolean, default=False)
+    website = db.Column(db.String(500))
+    seeking_talent = db.Column(db.Boolean, default=False)
     seeking_description = db.Column(db.String())
     date_created = db.Column(db.DateTime, default = datetime.now)
     shows_venue = db.relationship('Show', backref='venue', lazy=True)
@@ -64,9 +66,9 @@ class Artist(db.Model):
     genres = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
-    website_link = db.Column(db.String(500))
+    website = db.Column(db.String(500))
     venue = db.Column(db.Boolean, default=False)
-    seeking_description_artist = db.Column(db.String())
+    seeking_description = db.Column(db.String())
     date_created = db.Column(db.DateTime, default= datetime.now)
     shows_artist = db.relationship('Show', backref='artist', lazy=True)
 
@@ -126,6 +128,7 @@ def search_venues():
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
   search_term=request.form.get('search_term', '')
   response = {}
+  # search for venues that contain the search criteria
   venuesMatch = list(Venue.query.filter(
     Venue.name.ilike(f"%{search_term}%") |
     Venue.state.ilike(f"%{search_term}%") |
@@ -146,6 +149,7 @@ def search_venues():
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
+  result = Venue.query.get(venue_id)
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
   data1={
@@ -226,7 +230,7 @@ def show_venue(venue_id):
     "upcoming_shows_count": 1,
   }
   data = list(filter(lambda d: d['id'] == venue_id, [data1, data2, data3]))[0]
-  return render_template('pages/show_venue.html', venue=data)
+  return render_template('pages/show_venue.html', venue=result)
 
 #  Create Venue
 #  ----------------------------------------------------------------
@@ -239,20 +243,69 @@ def create_venue_form():
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
   # TODO: insert form data as a new Venue record in the db, instead
+  form = VenueForm(request.form)
+  error = False
+  if form.validate():
+    try:
+      newVenue = Venue(
+        name= form.name.data,
+        city=form.city.data,
+        state=form.state.data,
+        address= form.address.data,
+        phone = form.phone.data,
+        genres = form.genres.data,
+        image_link = form.image_link.data,
+        facebook_link = form.facebook_link.data,
+        website = form.website_link.data,
+        seeking_talent = form.seeking_talent.data,
+        seeking_description = form.seeking_description.data
+      )
+      db.session.add(newVenue)
+      db.session.commit()
+      flash('Venue was successfully listed!')
+    except:
+      error = True
+      db.session.rollback()
+      print(sys.exc_info())
+      flash('An error occurred. Venue could not be listed.')
+    finally:
+      db.session.close()
+    if(error):
+      abort(500)
+    else:
+      return render_template('pages/home.html')
+  else:
+    print(form.errors)
+    flash("Venue was not sucessfully added")
+
+
   # TODO: modify data to be the data object returned from db insertion
 
   # on successful db insert, flash success
-  flash('Venue ' + request.form['name'] + ' was successfully listed!')
+  #flash('Venue ' + request.form['name'] + ' was successfully listed!')
   # TODO: on unsuccessful db insert, flash an error instead.
   # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
   # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-  return render_template('pages/home.html')
+  #return render_template('pages/home.html')
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
   # TODO: Complete this endpoint for taking a venue_id, and using
   # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
-
+  error = False
+  try:
+    venue = Venue.query.get(venue_id)
+    db.session.delete(venue)
+    db.session.commit()
+    flash("Venue was not sucessfully deleted")
+  except:
+    error= True
+    db.session.rollback()
+    flash("Venue could not be sucessfully deleted")
+  finally:
+    db.session.close()
+  return redirect(url_for('index'))
+    
   # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
   # clicking that button delete it from the db then redirect the user to the homepage
   return None
@@ -262,6 +315,7 @@ def delete_venue(venue_id):
 @app.route('/artists')
 def artists():
   # TODO: replace with real data returned from querying the database
+  all_artists = db.session.query(Artist).all()
   data=[{
     "id": 4,
     "name": "Guns N Petals",
