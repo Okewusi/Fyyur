@@ -16,7 +16,8 @@ import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
-from models import *
+from models import db, Venue, Artist, Show
+
 import sys
 
 #----------------------------------------------------------------------------#
@@ -25,10 +26,12 @@ import sys
 
 app = Flask(__name__)
 #app.config.from_pyfile('config.py')
+db.init_app(app)
 moment = Moment(app)
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pelcool@localhost:5432/fyyur'
 app.config.from_object('config')
-db = SQLAlchemy(app)
+
+#db = SQLAlchemy(app)
 migrate = Migrate(app,db)
 app.secret_key = "testingthis"
 # TODO: connect to a local postgresql database
@@ -182,6 +185,7 @@ def create_venue_submission():
   else:
     print(form.errors)
     flash("Venue could not be added")
+    return render_template('pages/home.html')
     
 
 

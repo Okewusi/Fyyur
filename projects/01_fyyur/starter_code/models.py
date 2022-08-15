@@ -1,3 +1,4 @@
+
 from email.policy import default
 import json
 import dateutil.parser
@@ -14,14 +15,14 @@ from flask_wtf import Form
 from forms import *
 import sys
 
-app = Flask(__name__)
+#app = Flask(__name__)
 #app.config.from_pyfile('config.py')
-moment = Moment(app)
+#moment = Moment(app)
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://pelcool@localhost:5432/fyyur'
-app.config.from_object('config')
-db = SQLAlchemy(app)
-migrate = Migrate(app,db)
-app.secret_key = "testingthis"
+#app.config.from_object('config')
+db = SQLAlchemy()
+#migrate = Migrate(app,db)
+#app.secret_key = "testingthis"
 
 
 class Venue(db.Model):
